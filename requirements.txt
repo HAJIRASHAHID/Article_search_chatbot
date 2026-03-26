@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+langchain
+langchain-groq
+langgraph
+tavily-python
+newspaper3k
+python-dotenv
+langchain_community
+lxml_html_clean
