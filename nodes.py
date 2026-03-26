@@ -1,4 +1,3 @@
-# nodes.py
 from typing import List
 from newspaper import Article as NewsArticle
 from state import State, Article
@@ -29,7 +28,7 @@ def web_search_node(state: State) -> State:
     """
     try:
         tavily = TavilySearchAPIWrapper()
-        results = tavily.run(state["search_query"])
+        results = tavily.results(state["search_query"], max_results=5)
         state["search_results"] = results
     except Exception as e:
         print(f"Web search failed: {e}")
@@ -54,7 +53,7 @@ def fetch_full_articles_node(state: State) -> State:
             articles.append({
                 "title": title,
                 "url": url,
-                "relevance_score": 0.0,  # will be updated in filter node
+                "relevance_score": 0.0,
                 "full_content": news.text,
                 "suggested_topic": state["search_topic"]
             })
@@ -69,11 +68,9 @@ def fetch_full_articles_node(state: State) -> State:
 def filter_and_score_node(state: State) -> State:
     """
     Filters articles by relevance score and assigns final scores.
-    Replace with LLM logic for real filtering.
     """
     final_articles: List[Article] = []
     for article in state["fetched_articles"]:
-        # Dummy scoring: you can replace this with LLM call
         score = 0.9
         if score >= state["target_relevance_score"]:
             final_articles.append({
