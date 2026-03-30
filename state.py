@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict
 from typing_extensions import TypedDict  # must use typing_extensions for Python < 3.12
-
+#Holds info about each article:
 class Article(TypedDict):
     title: str
     url: str
@@ -8,7 +8,7 @@ class Article(TypedDict):
     full_content: str
     suggested_topic: str
 
-class State(TypedDict, total=False):
+class State(TypedDict, total=False): # total=False allows optional keys .. search_topic must be provided
     search_topic: str
     target_audience: Optional[str]
     target_relevance_score: Optional[float]

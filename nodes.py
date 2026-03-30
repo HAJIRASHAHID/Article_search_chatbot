@@ -22,7 +22,7 @@ def user_input_node(state: State) -> State:
 # -----------------------------
 # Node 2: Web Search Node
 # -----------------------------
-def web_search_node(state: State) -> State:
+def web_search_node(state: State) -> State:  # Uses TavilySearchAPIWrapper to perform a web search using the search_query. Stores results in search_results key of state.
     """
     Calls Tavily web search to get top search results.
     """
@@ -37,6 +37,7 @@ def web_search_node(state: State) -> State:
 
 # -----------------------------
 # Node 3: Fetch Full Articles Node
+# Why it exists: Search results often only contain snippets. This node fetches the full article content for better relevance scoring.
 # -----------------------------
 def fetch_full_articles_node(state: State) -> State:
     """
@@ -63,7 +64,8 @@ def fetch_full_articles_node(state: State) -> State:
     return state
 
 # -----------------------------
-# Node 4: Filter & Score Node
+# Node 4: Filter & Score Node   
+# #why it exists:Not all articles from the web are useful. This node filters and ranks articles to return only the most relevant ones.
 # -----------------------------
 def filter_and_score_node(state: State) -> State:
     """
@@ -85,13 +87,14 @@ def filter_and_score_node(state: State) -> State:
 
 # -----------------------------
 # Node 5: Full Pipeline
+# Why it exists: Provides a single function to run the entire pipeline in order, making it easier to call from the API or other interfaces. 
 # -----------------------------
 def run_pipeline(state: State) -> List[Article]:
     """
     Executes all nodes in order and returns final articles.
     """
-    state = user_input_node(state)
-    state = web_search_node(state)
-    state = fetch_full_articles_node(state)
-    state = filter_and_score_node(state)
-    return state["final_articles"]
+    state = user_input_node(state) #prepare input
+    state = web_search_node(state) #fetch urls
+    state = fetch_full_articles_node(state) #fetch full content
+    state = filter_and_score_node(state) #filter and score
+    return state["final_articles"] #return final articles

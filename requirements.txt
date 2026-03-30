@@ -1,10 +1,22 @@
-fastapi
-uvicorn
-langchain
-langchain-groq
-langgraph
-tavily-python
-newspaper3k
-python-dotenv
-langchain_community
-lxml_html_clean
+# Core Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+
+# LLM & LangChain - USE NEWER VERSIONS
+langchain==0.2.6
+langchain-core==0.2.48
+langchain-groq==0.1.10
+langgraph==0.1.2
+langchain-community==0.1.6
+
+# Web Search & Scraping
+tavily-python==0.3.5
+newspaper3k==0.2.8
+beautifulsoup4==4.12.2
+requests==2.31.0
+lxml==4.9.4
+
+# Utilities
+python-dotenv==1.0.0
+typing-extensions==4.9.0
