@@ -1,6 +1,6 @@
-from typing import List, Optional, Dict
-from typing_extensions import TypedDict  # must use typing_extensions for Python < 3.12
-#Holds info about each article:
+from typing import TypedDict, List, Optional
+
+
 class Article(TypedDict):
     title: str
     url: str
@@ -8,12 +8,21 @@ class Article(TypedDict):
     full_content: str
     suggested_topic: str
 
-class State(TypedDict, total=False): # total=False allows optional keys .. search_topic must be provided
+
+class State(TypedDict):
+    # user inputs
     search_topic: str
-    target_audience: Optional[str]
-    target_relevance_score: Optional[float]
+    target_audience: str
+    target_relevance_score: float
     web_url: Optional[str]
-    search_query: Optional[str]
-    search_results: Optional[List[Dict]]
-    fetched_articles: Optional[List[Article]]
-    final_articles: Optional[List[Article]]
+
+    # pipeline data
+    search_results: List[dict]
+    fetched_articles: List[dict]
+    final_output: List[Article]
+
+    # conversation memory for multi-turn
+    messages: List[dict]
+    user_message: Optional[str]
+    session_id: Optional[str]
+    iteration: int

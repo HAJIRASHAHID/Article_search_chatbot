@@ -1,12 +1,9 @@
-FROM python:3.10-slim
+FROM python:3.10
 
-WORKDIR /usr/src/app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+WORKDIR /app
 
 COPY . .
 
-ENV GROQ_API_KEY=your_key_here
+RUN pip install -r requirements.txt
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

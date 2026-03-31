@@ -1,34 +1,37 @@
-from langgraph.graph import StateGraph
+from langgraph.graph import StateGraph, END
 from state import State
-from nodes import (
-    user_input_node,
-    web_search_node,
-    fetch_full_articles_node,
-    filter_and_score_node
-)
+from nodes import input_node, planner_node, tool_node, fetch_node, filter_node, update_node
+
 
 def build_graph():
-    """
-    Builds the LangGraph computation graph for the article search pipeline.
-    """
-    builder = StateGraph(State)
-    
-    # Add nodes with CORRECT function names from nodes.py
-    builder.add_node("prepare", user_input_node)
-    builder.add_node("search", web_search_node)
-    builder.add_node("fetch", fetch_full_articles_node)
-    builder.add_node("filter", filter_and_score_node)
+    """Main pipeline: input → planner → tool → fetch → filter → END"""
+    g = StateGraph(State)
 
-    # Set entry point
-    builder.set_entry_point("prepare")
+    g.add_node("input",   input_node)
+    g.add_node("planner", planner_node)
+    g.add_node("tool",    tool_node)
+    g.add_node("fetch",   fetch_node)
+    g.add_node("filter",  filter_node)
 
-    # Define edges (transitions between nodes)
-    builder.add_edge("prepare", "search")
-    builder.add_edge("search", "fetch")
-    builder.add_edge("fetch", "filter")
+    g.set_entry_point("input")
+    g.add_edge("input",   "planner")
+    g.add_edge("planner", "tool")
+    g.add_edge("tool",    "fetch")
+    g.add_edge("fetch",   "filter")
+    g.add_edge("filter",  END)
 
-    # Compile and return the graph
-    return builder.compile()
+    return g.compile()
 
-# Create the graph instance
-app_graph = build_graph()
+
+def build_update_graph():
+    """Follow-up pipeline: update → filter → END (no new web search)"""
+    g = StateGraph(State)
+
+    g.add_node("update", update_node)
+    g.add_node("filter", filter_node)
+
+    g.set_entry_point("update")
+    g.add_edge("update", "filter")
+    g.add_edge("filter", END)
+
+    return g.compile()

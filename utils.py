@@ -1,10 +1,11 @@
-from newspaper import Article
+from newspaper import Article as NewsArticle
 
-def extract_full_content(url: str):
+
+def fetch_full_content(url: str) -> str:
     try:
-        article = Article(url)
+        article = NewsArticle(url)
         article.download()
         article.parse()
-        return article.text
+        return article.text or ""
     except Exception:
         return ""
