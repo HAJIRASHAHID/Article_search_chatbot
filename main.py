@@ -1,11 +1,29 @@
-import uuid
+import os
+import uuid   # for generating unique session IDs
 from typing import Optional, List, Any
-
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from graph import build_graph, build_update_graph
 from state import State
+# ===== LANGSMITH SETUP =====
+load_dotenv()
+
+# Enable LangSmith tracing if configured
+if os.getenv("LANGSMITH_TRACING", "false").lower() == "true":
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGCHAIN_ENDPOINT"] = os.getenv(
+        "LANGSMITH_ENDPOINT",
+        "https://api.smith.langchain.com"
+    )
+    os.environ["LANGCHAIN_API_KEY"] = os.getenv("LANGSMITH_API_KEY")
+    os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGSMITH_PROJECT", "default")
+    print("✅ LangSmith tracing ENABLED")
+else:
+    print("⚠️  LangSmith tracing DISABLED")
+
+# ===== FASTAPI SETUP =====
 
 app = FastAPI(title="Article Search Chatbot", version="2.0")
 
@@ -17,7 +35,7 @@ _update_graph = build_update_graph()
 sessions: dict[str, State] = {}
 
 
-# ── request / response models ─────────────────────────────────────────────────
+# ── request / response models ────────────────────────────────────────────────
 
 class SearchRequest(BaseModel):
     search_topic:           str
@@ -42,7 +60,7 @@ class UpdateResponse(BaseModel):
     iteration:     int
 
 
-# ── endpoints ─────────────────────────────────────────────────────────────────
+# ── endpoints ────────────────────────────────────────────────────────────────
 
 @app.post("/search", response_model=SearchResponse)
 def search(req: SearchRequest):

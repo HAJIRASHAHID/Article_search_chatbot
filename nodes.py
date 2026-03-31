@@ -23,10 +23,8 @@ def search_tool(query: str) -> str:
 
 llm_with_tools = llm_fast.bind_tools([search_tool], tool_choice="auto")
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # NODE 1 – input_node
-# ─────────────────────────────────────────────────────────────────────────────
 def input_node(state: State) -> dict:
     return {
         "search_topic":           state.get("search_topic", "").strip(),
@@ -42,20 +40,16 @@ def input_node(state: State) -> dict:
         "iteration":              state.get("iteration", 0),
     }
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# NODE 2 – planner_node  (LLM call 1 — decides what to search)
-# ─────────────────────────────────────────────────────────────────────────────
+# NODE 2 – planner_node
 def planner_node(state: State) -> dict:
     topic    = state["search_topic"]
     audience = state["target_audience"]
 
     messages = [
-        SystemMessage(content=(
-            f"You are a research assistant. "
-            f"Your ONLY job is to call the search_tool to find articles about '{topic}' "
-            f"for a {audience} audience. Always call the tool."
-        )),
+        SystemMessage(content=(f"You are a research assistant. "
+                               f"Your ONLY job is to call the search_tool to find articles about '{topic}' "
+                               f"for a {audience} audience. Always call the tool.")),
         HumanMessage(content=f"Search for articles about: {topic}"),
     ]
 
@@ -66,15 +60,12 @@ def planner_node(state: State) -> dict:
         print(f"[planner_node] error: {e}")
         return {"planner_response": None}
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# NODE 3 – tool_node  (executes the tool call from planner)
-# ─────────────────────────────────────────────────────────────────────────────
+# NODE 3 – tool_node
 def tool_node(state: State) -> dict:
     response = state.get("planner_response")
     results  = []
 
-    # try to use tool call from LLM
     if response and hasattr(response, "tool_calls") and response.tool_calls:
         for tc in response.tool_calls:
             query = tc.get("args", {}).get("query", state["search_topic"])
@@ -87,7 +78,6 @@ def tool_node(state: State) -> dict:
             except Exception:
                 pass
 
-    # fallback: LLM skipped the tool, search directly
     if not results:
         query = f"{state['search_topic']} {state['target_audience']}"
         print(f"[tool_node] fallback search: {query}")
@@ -96,10 +86,8 @@ def tool_node(state: State) -> dict:
     print(f"[tool_node] got {len(results)} results")
     return {"search_results": results}
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# NODE 4 – fetch_node  (download full article text)
-# ─────────────────────────────────────────────────────────────────────────────
+# NODE 4 – fetch_node
 def fetch_node(state: State) -> dict:
     fetched = []
 
@@ -111,11 +99,9 @@ def fetch_node(state: State) -> dict:
         if not url:
             continue
 
-        # try newspaper3k, fall back to Tavily snippet
         full_text = fetch_full_content(url)
         if len(full_text) < 200:
             full_text = snippet
-
         if len(full_text) < 100:
             print(f"[fetch_node] skipping (no content): {url}")
             continue
@@ -125,10 +111,8 @@ def fetch_node(state: State) -> dict:
     print(f"[fetch_node] fetched {len(fetched)} articles")
     return {"fetched_articles": fetched}
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# NODE 5 – filter_node  (LLM call 2 — score and filter, return strict JSON)
-# ─────────────────────────────────────────────────────────────────────────────
+# NODE 5 – filter_node
 def filter_node(state: State) -> dict:
     fetched   = state.get("fetched_articles", [])
     threshold = float(state.get("target_relevance_score", 0.6))
@@ -139,13 +123,7 @@ def filter_node(state: State) -> dict:
         print("[filter_node] no articles to filter")
         return {"final_output": [], "iteration": state.get("iteration", 0) + 1}
 
-    # cap content so we don't blow the context window
-    payload = [
-        {"title": a["title"], "url": a["url"], "full_content": a["full_content"][:3000]}
-        for a in fetched
-    ]
-
-    # build message history for context-aware filtering
+    payload = [{"title": a["title"], "url": a["url"], "full_content": a["full_content"][:3000]} for a in fetched]
     history_msgs = _build_history(state.get("messages", []))
 
     system = SystemMessage(content="""You are an article filtering assistant.
@@ -156,10 +134,8 @@ STRICT RULES — follow exactly:
 3. Only include articles that meet the minimum relevance_score
 4. If none qualify, return empty array: []""")
 
-    user_content = (
-        f"Topic: {topic}\nAudience: {audience}\nMin score: {threshold}\n\n"
-        f"Articles:\n{json.dumps(payload, ensure_ascii=False)}"
-    )
+    user_content = (f"Topic: {topic}\nAudience: {audience}\nMin score: {threshold}\n\n"
+                    f"Articles:\n{json.dumps(payload, ensure_ascii=False)}")
     human = HumanMessage(content=user_content)
 
     try:
@@ -171,43 +147,32 @@ STRICT RULES — follow exactly:
 
     final_output = _parse_json(raw_text)
 
-    # save this turn to conversation history
     updated_messages = list(state.get("messages", [])) + [
-        {"role": "user",      "content": user_content},
+        {"role": "user", "content": user_content},
         {"role": "assistant", "content": raw_text},
     ]
 
     print(f"[filter_node] kept {len(final_output)} articles")
-    return {
-        "final_output": final_output,
-        "messages":     updated_messages,
-        "iteration":    state.get("iteration", 0) + 1,
-    }
-
+    return {"final_output": final_output, "messages": updated_messages, "iteration": state.get("iteration", 0) + 1}
 
 # ─────────────────────────────────────────────────────────────────────────────
-# NODE 6 – update_node  (re-entry for follow-up messages)
-# Re-filters existing fetched_articles without a new web search
-# ─────────────────────────────────────────────────────────────────────────────
+# NODE 6 – update_node
 def update_node(state: State) -> dict:
     user_msg  = (state.get("user_message") or "").strip()
     fetched   = state.get("fetched_articles", [])
     threshold = float(state.get("target_relevance_score", 0.6))
 
     if not user_msg:
+        print("[update_node] no user message, skipping update")
         return {}
 
-    # let user change threshold inline e.g. "raise score to 0.8"
+    # parse inline threshold e.g., "raise score to 0.8"
     nums = re.findall(r"\b0\.\d+\b", user_msg)
     if nums:
         threshold = float(nums[0])
         print(f"[update_node] new threshold: {threshold}")
 
-    payload = [
-        {"title": a["title"], "url": a["url"], "full_content": a["full_content"][:3000]}
-        for a in fetched
-    ]
-
+    payload = [{"title": a["title"], "url": a["url"], "full_content": a["full_content"][:3000]} for a in fetched]
     history_msgs = _build_history(state.get("messages", []))
 
     system = SystemMessage(content="""You are an article filtering assistant.
@@ -218,44 +183,51 @@ STRICT RULES:
 3. Apply the user's instructions when re-filtering
 4. If none qualify, return: []""")
 
-    user_content = (
-        f"User request: {user_msg}\n\n"
-        f"Topic: {state['search_topic']}\nAudience: {state['target_audience']}\n"
-        f"Min score: {threshold}\n\n"
-        f"Re-filter these articles:\n{json.dumps(payload, ensure_ascii=False)}"
-    )
+    user_content = (f"User request: {user_msg}\n\n"
+                    f"Topic: {state['search_topic']}\nAudience: {state['target_audience']}\n"
+                    f"Min score: {threshold}\n\n"
+                    f"Re-filter these articles:\n{json.dumps(payload, ensure_ascii=False)}")
     human = HumanMessage(content=user_content)
 
     try:
         response = llm_strong.invoke([system] + history_msgs + [human])
         raw_text = response.content.strip()
+        print("[update_node] raw LLM output:", raw_text[:500])
     except Exception as e:
         print(f"[update_node] LLM error: {e}")
-        return {}
+        raw_text = ""
 
     final_output = _parse_json(raw_text)
 
+    # Fallback: if empty, return all fetched_articles
+    if not final_output:
+        print("[update_node] LLM returned empty, falling back to all fetched_articles")
+        final_output = [
+            {"title": a["title"],
+             "url": a["url"],
+             "relevance_score": 1.0,
+             "full_content": a["full_content"],
+             "suggested_topic": state["search_topic"]}
+            for a in fetched
+        ]
+
     updated_messages = list(state.get("messages", [])) + [
-        {"role": "user",      "content": user_content},
+        {"role": "user", "content": user_content},
         {"role": "assistant", "content": raw_text},
     ]
 
     print(f"[update_node] updated: {len(final_output)} articles")
     return {
-        "final_output":           final_output,
-        "messages":               updated_messages,
+        "final_output": final_output,
+        "messages": updated_messages,
         "target_relevance_score": threshold,
-        "iteration":              state.get("iteration", 0) + 1,
+        "iteration": state.get("iteration", 0) + 1,
     }
 
-
 # ── helpers ───────────────────────────────────────────────────────────────────
-
 def _parse_json(text: str) -> list:
-    """Extract JSON array from LLM output, handles markdown fences."""
     text = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
     text = re.sub(r"\s*```$", "", text).strip()
-
     try:
         data = json.loads(text)
         if isinstance(data, list):
@@ -265,20 +237,15 @@ def _parse_json(text: str) -> list:
                 return data[key]
     except json.JSONDecodeError:
         pass
-
-    # last resort: find first [...] block
     match = re.search(r"\[.*\]", text, re.DOTALL)
     if match:
         try:
             return json.loads(match.group())
         except json.JSONDecodeError:
             pass
-
     return []
 
-
 def _build_history(messages: list) -> list:
-    """Convert stored message dicts to LangChain message objects (last 6 only)."""
     out = []
     for m in messages[-6:]:
         role    = m.get("role", "user")

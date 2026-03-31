@@ -12,3 +12,4 @@ lxml_html_clean
 beautifulsoup4
 python-dotenv
 requests
+langsmith>=0.1.17 
